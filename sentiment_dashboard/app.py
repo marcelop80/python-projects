@@ -159,3 +159,74 @@ Review: {text}"""
                     color="Claude Sentiment",
                     color_discrete_map={"Positive": "#2E86AB", "Neutral": "#F0A500", "Negative": "#E63946"})
                 st.plotly_chart(fig2, use_container_width=True)
+            
+            # --- Insights & Recommendations ---
+            st.divider()
+            st.subheader("📊 Insights & Recommendations")
+
+            with st.spinner("Generating insights..."):
+
+                # Separate positive and negative reviews
+                negative_reviews = df[df["Claude Sentiment"] == "Negative"][review_col].tolist()
+                positive_reviews = df[df["Claude Sentiment"] == "Positive"][review_col].tolist()
+
+            # --- What to improve ---
+            if negative_reviews:
+                negative_text = "\n".join(negative_reviews)
+                message_negative = client.messages.create(
+                    model="claude-sonnet-4-6",
+                    max_tokens=300,
+                    messages=[
+                        {
+                    "role": "user",
+                    "content": f"""Analyze these negative customer reviews and identify the most recurring issues.
+                    Respond with ONLY a JSON object like this:
+                        {{"themes": ["theme1", "theme2", "theme3"], "summary": "brief overall summary of main problems"}}
+
+                        Reviews:
+                    {negative_text}"""
+                          }
+                        ]
+                    )
+                negative_insights = json.loads(message_negative.content[0].text)
+
+            # --- What to keep ---
+            if positive_reviews:
+                positive_text = "\n".join(positive_reviews)
+                message_positive = client.messages.create(
+                    model="claude-sonnet-4-6",
+                    max_tokens=300,
+                    messages=[
+                        {
+                    "role": "user",
+                    "content": f"""Analyze these positive customer reviews and identify what customers love most.
+                    Respond with ONLY a JSON object like this:
+                    {{"themes": ["theme1", "theme2", "theme3"], "summary": "brief overall summary of what is working well"}}
+
+                    Reviews:
+                    {positive_text}"""
+                        }
+                    ]
+                )
+                positive_insights = json.loads(message_positive.content[0].text)
+
+            # --- Display insights ---
+                col1, col2 = st.columns(2)
+
+            with col1:
+                st.markdown("### 🔴 What to Improve")
+            if negative_reviews:
+                for theme in negative_insights["themes"]:
+                    st.markdown(f"- {theme}")
+                    st.info(negative_insights["summary"])
+            else:
+                st.success("No negative reviews found!")
+
+            with col2:
+                st.markdown("### 🟢 What to Keep")
+            if positive_reviews:
+                for theme in positive_insights["themes"]:
+                    st.markdown(f"- {theme}")
+                    st.success(positive_insights["summary"])
+            else:
+                st.warning("No positive reviews found!")           
